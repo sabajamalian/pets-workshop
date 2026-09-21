@@ -1,0 +1,47 @@
+name: Hello World
+
+on:
+  workflow_dispatch:
+    inputs:
+      greeting:
+        description: Greeting for the shelter team
+        type: string
+        required: true
+        default: Hello, shelter team!
+      simulate-failure:
+        description: Fail once to practice reading logs
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  greet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Say hello
+        env:
+          GREETING: ${{ inputs.greeting }}
+        run: printf '%s\n' "$GREETING"
+
+      - name: Show environment info
+        run: |
+          printf 'Runner OS: %s\n' "$RUNNER_OS"
+          printf 'Repository: %s\n' "$GITHUB_REPOSITORY"
+          printf 'Triggered by: %s\n' "$GITHUB_ACTOR"
+
+      - name: Practice a failure
+        if: inputs.simulate-failure
+        run: |
+          echo "::error::This failure was requested for practice."
+          exit 1
+
+      - name: Write a job summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          printf '## Shelter workflow\n\nResult before summary: %s\n' "$JOB_STATUS" >> "$GITHUB_STEP_SUMMARY"

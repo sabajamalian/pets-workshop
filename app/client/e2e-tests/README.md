@@ -15,12 +15,24 @@ This directory contains Playwright end-to-end tests for the Tailspin Shelter web
 
 Make sure you have installed dependencies:
 ```bash
-npm install
+npm ci
+npx playwright install chromium
 ```
 
-You also need Python 3 with Flask dependencies installed:
+Use Node.js 22.22.2 or newer in the Node 22 line and Python 3.13. From
+`app/client`, create a repository-local Python environment and select its
+interpreter explicitly (macOS/Linux):
 ```bash
-pip install -r ../server/requirements.txt
+python3.13 -m venv ../../.venv
+../../.venv/bin/python -m pip install -r ../server/requirements.txt
+export PYTHON="$(cd ../.. && pwd)/.venv/bin/python"
+```
+
+On Windows, use PowerShell:
+```powershell
+py -3.13 -m venv ../../.venv
+../../.venv/Scripts/python.exe -m pip install -r ../server/requirements.txt
+$env:PYTHON = (Resolve-Path ../../.venv/Scripts/python.exe).Path
 ```
 
 ### Running Tests
@@ -37,6 +49,9 @@ npm run test:e2e:headed
 
 # Debug tests
 npm run test:e2e:debug
+
+# Test the server launcher without Flask or a browser (macOS/Linux)
+node --test start-test-server.test.js
 ```
 
 ## Test Architecture
@@ -44,11 +59,22 @@ npm run test:e2e:debug
 Tests run against the real Flask server with a separate test database seeded with deterministic data. When Playwright starts, it:
 
 1. Seeds a test database (`e2e_test_dogshelter.db` in the server directory) with known dogs and breeds
-2. Starts the Flask server using the test database
+2. Starts one Flask server using the test database, without the debug reloader
 3. Starts the Astro dev server pointing at the Flask server
 4. Runs all e2e tests against the live application
 
 The test data is defined in `../server/utils/seed_test_database.py`.
+
+Set `DATABASE_PATH` to an absolute path to use a different disposable SQLite file.
+The launcher passes this path to both seeding and Flask. Seeding replaces that
+file, so never point it at `dogshelter.db` or any data you want to keep. Do not use
+`:memory:` for end-to-end tests: seeding and Flask run in separate processes and
+would receive separate empty databases. `:memory:` is suitable for the API unit
+tests instead.
+
+The launcher preserves seed/startup failures and server exit codes, and forwards
+shutdown signals to Flask. Playwright stops both development servers after the
+run.
 
 ## Test Coverage
 

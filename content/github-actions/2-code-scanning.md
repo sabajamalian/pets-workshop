@@ -28,6 +28,9 @@ Security is important in every application. By detecting potential vulnerabiliti
 > [!NOTE]
 > Code scanning is built on [GitHub Actions][github-actions]. When you enable CodeQL's default setup, GitHub creates and manages a workflow for you behind the scenes. You'll see this connection more clearly when you navigate to the **Actions** tab after enabling it. This is a great example of how Actions powers automation across the GitHub platform — not just CI/CD pipelines you write yourself.
 
+> [!NOTE]
+> These are repository features, not scripts in `app/client/package.json`. Pets has no `npm run lint` or `npm run security` command. Availability and settings labels vary by repository visibility, plan, and enabled GitHub Code Security or Secret Protection products. An owner should verify access before the exercise; a walkthrough without enabling a feature isn't equivalent protection.
+
 ## Configure Dependabot
 
 Most projects depend on open source and external libraries. While modern development would be impossible without them, we always need to ensure the dependencies we use are secure. [Dependabot][dependabot-quickstart] monitors your repository's dependencies and raises alerts — or even creates pull requests — to update insecure packages.
@@ -85,6 +88,26 @@ A background process starts and configures a CodeQL analysis workflow for your r
 > [!TIP]
 > After enabling CodeQL, navigate to the **Actions** tab in your repository. You'll see a new **CodeQL** workflow listed alongside the **Hello World** workflow you created earlier. This is the Actions workflow that GitHub created automatically to run code scanning — proof that Actions isn't just for CI/CD, but powers many of GitHub's built-in features.
 
+## Review the workflow supply chain
+
+Code scanning looks for application vulnerabilities. The workflow itself also runs code, so review its actions, permissions, and inputs separately.
+
+1. Open an action's repository from its Marketplace listing. Check its publisher, source, requested permissions, and maintenance history. A verified publisher badge confirms identity, not that every action is safe.
+2. Compare a version tag with the full commit SHA it points to. Later lessons use reviewed immutable references, for example:
+
+    ```yaml
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      with:
+        persist-credentials: false
+    ```
+
+3. Review action updates like dependency updates. A SHA fixes the action code version; it doesn't freeze everything downloaded by the action. For Actions version-update PRs, configure Dependabot's `github-actions` ecosystem separately from the security-update setting above.
+4. Keep PR validation read-only and free of deployment secrets. Fork PRs are untrusted code, including workflow changes. Don't use `pull_request_target` to check out and execute a contributor's branch, and don't run untrusted PR code on a persistent self-hosted runner.
+5. Revisit the greeting input in lesson 1. Branch names, PR titles, and user inputs must travel through quoted environment variables, not context expressions interpolated into a `run` script.
+
+> [!IMPORTANT]
+> Secret masking isn't a permission boundary and doesn't catch every transformed secret. Don't print credentials or archive the workspace indiscriminately. Only the later trusted deployment job will request an OIDC token.
+
 ## Summary and next steps
 
 You've enabled GitHub Advanced Security for your repository:
@@ -103,6 +126,7 @@ These tools run automatically in the background, catching security issues before
 - [About secret scanning][about-secret-scanning]
 - [GitHub Skills: Secure your repository's supply chain][skills-supply-chain]
 - [GitHub Skills: Secure code game][skills-secure-code]
+- [Security hardening for GitHub Actions][actions-security]
 
 | [← Introduction & Your First Workflow][walkthrough-previous] | [Next: Running Tests →][walkthrough-next] |
 |:-----------------------------------|------------------------------------------:|
@@ -112,6 +136,7 @@ These tools run automatically in the background, catching security issues before
 [about-secret-scanning]: https://docs.github.com/code-security/secret-scanning/introduction/about-secret-scanning
 [advanced-security]: https://github.com/features/security
 [advanced-security-docs]: https://docs.github.com/get-started/learning-about-github/about-github-advanced-security
+[actions-security]: https://docs.github.com/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions
 [dependabot-quickstart]: https://docs.github.com/code-security/getting-started/dependabot-quickstart-guide
 [github-actions]: https://github.com/features/actions
 [supported-secrets]: https://docs.github.com/code-security/secret-scanning/introduction/supported-secret-scanning-patterns

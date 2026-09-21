@@ -1,0 +1,108 @@
+name: Run Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  test-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13', '3.14']
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Set up Python environment
+        id: python
+        uses: ./.github/actions/setup-python-env
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Record Python version
+        env:
+          PYTHON_VERSION: ${{ steps.python.outputs.python-version }}
+        run: |
+          printf 'API runtime: Python %s\n' "$PYTHON_VERSION" >> "$GITHUB_STEP_SUMMARY"
+      - name: Run tests
+        working-directory: app/server
+        env:
+          DATABASE_PATH: ':memory:'
+        run: python -m unittest test_app -v
+
+  test-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Set up Python environment
+        uses: ./.github/actions/setup-python-env
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: app/client/package-lock.json
+      - name: Install Node dependencies
+        working-directory: app/client
+        run: npm ci
+      - name: Install Playwright browsers
+        working-directory: app/client
+        run: npx playwright install --with-deps chromium
+      - name: Run e2e tests
+        working-directory: app/client
+        run: npx playwright test --project=chromium
+
+  build-client:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: app/client/package-lock.json
+      - name: Install Node dependencies
+        working-directory: app/client
+        run: npm ci
+      - name: Build frontend
+        working-directory: app/client
+        run: npm run build
+
+  tests-passed:
+    if: always()
+    needs: [test-api, test-e2e, build-client]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check results
+        env:
+          API_RESULT: ${{ needs.test-api.result }}
+          E2E_RESULT: ${{ needs.test-e2e.result }}
+          BUILD_RESULT: ${{ needs.build-client.result }}
+        run: |
+          if [[ "$API_RESULT" != "success" || "$E2E_RESULT" != "success" || "$BUILD_RESULT" != "success" ]]; then
+            echo "::error::Every required job must succeed (failed, cancelled, and skipped jobs are rejected)."
+            exit 1
+          fi
+          printf '## Required checks\n\nAPI, browser tests, and frontend build passed.\n' >> "$GITHUB_STEP_SUMMARY"
