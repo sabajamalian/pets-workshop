@@ -1,0 +1,176 @@
+trigger: none
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  CI: 'true'
+  PYTHONDONTWRITEBYTECODE: '1'
+
+stages:
+  - stage: Validate
+    displayName: Validate Pets without deploying
+    jobs:
+      - job: TestApi
+        timeoutInMinutes: 10
+        steps:
+          - checkout: self
+            persistCredentials: false
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '3.13'
+              architecture: x64
+          - bash: |
+              set -euo pipefail
+              python -m pip install -r app/server/requirements.txt
+          - bash: |
+              set -euo pipefail
+              python -m unittest test_app -v
+            displayName: Test the API with an in-memory database
+            workingDirectory: $(Build.SourcesDirectory)/app/server
+            env:
+              DATABASE_PATH: ':memory:'
+              PYTHONDONTWRITEBYTECODE: '1'
+
+      - job: TestE2E
+        timeoutInMinutes: 15
+        variables:
+          hasBrowserReport: 'false'
+        steps:
+          - checkout: self
+            persistCredentials: false
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '3.13'
+              architecture: x64
+          - bash: |
+              set -euo pipefail
+              python -m pip install -r app/server/requirements.txt
+          - task: UseNode@1
+            inputs:
+              version: '22.x'
+          - bash: |
+              set -euo pipefail
+              npm ci
+            workingDirectory: $(Build.SourcesDirectory)/app/client
+          - bash: |
+              set -euo pipefail
+              npx playwright install --with-deps chromium
+            workingDirectory: $(Build.SourcesDirectory)/app/client
+          - bash: |
+              set -euo pipefail
+              npm run test:e2e -- --project=chromium
+            workingDirectory: $(Build.SourcesDirectory)/app/client
+            env:
+              CI: 'true'
+              PYTHON: python
+          - bash: |
+              set -euo pipefail
+              mkdir -p "$REPORT_DIRECTORY"
+              found=false
+              for directory in playwright-report test-results; do
+                if [ -d "app/client/$directory" ]; then
+                  cp -R "app/client/$directory" "$REPORT_DIRECTORY/"
+                  found=true
+                fi
+              done
+              echo "##vso[task.setvariable variable=hasBrowserReport]$found"
+              if [ "$found" = false ]; then
+                echo "##vso[task.logissue type=warning]No browser diagnostics were produced."
+              fi
+            displayName: Collect diagnostics even when tests fail
+            condition: not(canceled())
+            env:
+              REPORT_DIRECTORY: $(Build.ArtifactStagingDirectory)/pets-browser-report
+          - task: PublishPipelineArtifact@1
+            displayName: Retain browser diagnostics
+            condition: and(not(canceled()), eq(variables['hasBrowserReport'], 'true'))
+            inputs:
+              targetPath: $(Build.ArtifactStagingDirectory)/pets-browser-report
+              artifact: pets-migration-browser-$(Build.BuildId)-$(System.StageAttempt)-$(System.JobAttempt)
+              publishLocation: pipeline
+
+      - job: BuildClient
+        timeoutInMinutes: 10
+        steps:
+          - checkout: self
+            persistCredentials: false
+          - task: UseNode@1
+            inputs:
+              version: '22.x'
+          - bash: |
+              set -euo pipefail
+              npm ci
+            workingDirectory: $(Build.SourcesDirectory)/app/client
+          - bash: |
+              set -euo pipefail
+              npm run build
+            workingDirectory: $(Build.SourcesDirectory)/app/client
+          - bash: |
+              set -euo pipefail
+              mkdir -p "$BUILD_DIRECTORY"
+              tar -czf "$BUILD_DIRECTORY/site.tar.gz" -C app/client/dist .
+              cd "$BUILD_DIRECTORY"
+              printf '%s\n' "$BUILD_SOURCEVERSION" > commit.txt
+              sha256sum site.tar.gz commit.txt > SHA256SUMS
+              echo "##vso[task.setvariable variable=artifactName;isOutput=true]$BUILD_ARTIFACT_NAME"
+            name: package
+            displayName: Package the build and record its commit
+            env:
+              BUILD_DIRECTORY: $(Build.ArtifactStagingDirectory)/pets-build
+              BUILD_ARTIFACT_NAME: pets-migration-build-$(Build.BuildId)-$(System.StageAttempt)-$(System.JobAttempt)
+          - task: PublishPipelineArtifact@1
+            inputs:
+              targetPath: $(Build.ArtifactStagingDirectory)/pets-build
+              artifact: $(package.artifactName)
+              publishLocation: pipeline
+
+      - job: Verify
+        dependsOn: BuildClient
+        timeoutInMinutes: 5
+        variables:
+          buildArtifactName: $[ dependencies.BuildClient.outputs['package.artifactName'] ]
+        steps:
+          - checkout: none
+          - bash: |
+              set -euo pipefail
+              test -n "$BUILD_ARTIFACT_NAME"
+            displayName: Require the producer's artifact name
+            env:
+              BUILD_ARTIFACT_NAME: $(buildArtifactName)
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              buildType: current
+              artifactName: $(buildArtifactName)
+              targetPath: $(Pipeline.Workspace)/verified-build
+          - bash: |
+              set -euo pipefail
+              sha256sum --check SHA256SUMS
+              test "$(cat commit.txt)" = "$BUILD_SOURCEVERSION"
+            displayName: Verify downloaded output
+            workingDirectory: $(Pipeline.Workspace)/verified-build
+
+      - job: MigrationPassed
+        dependsOn: [TestApi, TestE2E, BuildClient, Verify]
+        condition: always()
+        timeoutInMinutes: 5
+        variables:
+          apiResult: $[ dependencies.TestApi.result ]
+          e2eResult: $[ dependencies.TestE2E.result ]
+          buildResult: $[ dependencies.BuildClient.result ]
+          verifyResult: $[ dependencies.Verify.result ]
+        steps:
+          - checkout: none
+          - bash: |
+              set -euo pipefail
+              test "$API_RESULT" = Succeeded
+              test "$E2E_RESULT" = Succeeded
+              test "$BUILD_RESULT" = Succeeded
+              test "$VERIFY_RESULT" = Succeeded
+            displayName: Require every validation result
+            env:
+              API_RESULT: $(apiResult)
+              E2E_RESULT: $(e2eResult)
+              BUILD_RESULT: $(buildResult)
+              VERIFY_RESULT: $(verifyResult)

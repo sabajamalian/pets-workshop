@@ -24,8 +24,9 @@ installing a second copy under a different filename.
 | [11: Runners](11-runners/) | Install `runner-matrix.yml` under `.github/workflows`. The default exercise uses hosted runners only. |
 | [12: Environments](12-environments/) | Configure `pets-production` first, then install `protected-release.yml`. This workflow verifies an approved artifact without deploying. |
 | [13: Copilot CLI](13-copilot-cli/) | Install `copilot-cli.yml`; keep its credential-free default. Configure `pets-copilot` and current authentication prerequisites before opting into a real CLI call. |
-| [14: Agentic simulation](14-agentic-workflows/) | Follow lesson 14's workflow/helper copy instructions and configure `pets-agentic`. No model or autonomous writes are involved. |
+| [14: GitHub Agentic Workflows](14-agentic-workflows/) | Copy `pets-test-plan.md` to `.github/workflows`, compile with gh-aw v0.88.8, and review/commit its `.lock.yml` and action pins. Configure `pets-agentic` and Copilot authentication before any real run; outputs stay staged. |
 | [15: Capstone](15-capstone/) | Install `capstone.yml`, the stage 07 local action, and the stage 08 reusable deployment workflow. Keep deployment off unless Azure/OIDC and `pets-production` are configured. |
+| [16: Azure Pipelines migration](16-migration/) | Optional. Keep `azure-pipelines.yml` as an Azure DevOps source, never an Actions workflow. Install only `migrated-ci.yml` under `.github/workflows` for the manual GitHub parity lab. |
 
 Security feature setup in lesson 2 is performed through GitHub settings and the
 existing Dependabot configuration; there is no synthetic scanning workflow to copy.
@@ -57,6 +58,9 @@ deployment workflow into an authenticated repository is not a harmless preview.
 The local checker validates relative links, solution structure, and selected
 teaching invariants. It is not a security scanner or a substitute for executing a
 workflow. The standalone `actionlint` tool provides workflow/expression validation.
+The checker explicitly distinguishes the migration's Azure Pipelines source and
+the compiler-owned gh-aw lockfile from the hand-written Actions examples. Those
+formats have their own policy tests; they are not silently excluded from validation.
 
 From the repository root, with Python 3.13 available:
 
@@ -69,10 +73,12 @@ python3.13 -m venv .venv
 
 On Windows, use the corresponding `.venv/Scripts/python.exe`. Install
 [actionlint][actionlint] through its documented installation method, then validate
-the workflow solution files (not composite `action.yml` metadata):
+the workflow solution files, including the generated agentic lockfile (not
+composite `action.yml` metadata or the Azure Pipelines source):
 
 ```bash
-find content/github-actions/solutions -name '*.yml' ! -name action.yml -print0 |
+find content/github-actions/solutions -name '*.yml' \
+  ! -name action.yml ! -name azure-pipelines.yml -print0 |
   xargs -0 actionlint
 ```
 
@@ -88,20 +94,42 @@ node --test app/client/start-test-server.test.js
 (cd app/client && CI=true PYTHON="$PWD/../../.venv/bin/python" npm run test:e2e)
 ```
 
-On Linux, macOS, or WSL, exercise the AI lessons' offline boundaries without
-installing Copilot, supplying a credential, or calling a model:
+On Linux, macOS, or WSL, exercise lesson 13's offline boundaries without installing
+Copilot, supplying an AI credential, or calling a model:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B -m unittest discover \
   -s content/github-actions/solutions/13-copilot-cli -p 'test_*.py' -v
-PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B -m unittest discover \
-  -s content/github-actions/solutions/14-agentic-workflows -p 'test_*.py' -v
 ```
+
+For lesson 14, install/select **gh-aw v0.88.8** as described in the lesson, then run:
+
+```bash
+.venv/bin/python content/github-actions/tools/check_agentic.py
+```
+
+This creates a temporary Git repository, copies the Markdown, generated lockfile,
+and reviewed action-resolution cache to their installation paths, compiles in strict
+mode, and checks for a byte-for-byte match. It never activates a workflow in this
+repository, calls AI, or creates an issue. Compilation may need network access to
+resolve dependencies. `--compiler /absolute/path/to/gh-aw` accepts a separately
+installed pinned binary without replacing your personal CLI extension.
+
+To refresh the stored snapshot after a source edit, use that same temporary layout:
+copy `pets-test-plan.md` and `pets-test-plan.lock.yml` into `.github/workflows`,
+and `actions-lock.json` into `.github/aw`. Run `gh aw compile pets-test-plan
+--strict`, then copy the reviewed compiler outputs back into
+`solutions/14-agentic-workflows/`. Never hand-edit the `.lock.yml`. Re-run the
+checker and actionlint after refreshing it. A compiler or dependency upgrade is a
+separate reviewed change, not a reason to ignore a freshness failure.
 
 Locally valid YAML cannot verify GitHub-hosted OS behavior, reviewers, repository
 settings, Azure trust, or Copilot policy/entitlement. Check those separately in an
 owner-authorized practice repository. Never activate cloud or AI examples in the
 source template just to test the docs.
+The migration examples likewise don't prove Azure DevOps service connections,
+hosted-agent capacity, branch policies, or cross-system parity until an owner
+queues them against the same commit and reviews the evidence.
 
 [workshop]: ../README.md
 [actionlint]: https://github.com/rhysd/actionlint/blob/main/docs/install.md

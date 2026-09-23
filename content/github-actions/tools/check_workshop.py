@@ -1,6 +1,7 @@
 """Validate local workshop links and the opt-in workflow examples."""
 
 import argparse
+import json
 import re
 import sys
 import textwrap
@@ -16,6 +17,135 @@ PIN = re.compile(r"^[\w.-]+/[\w./-]+@[a-f0-9]{40}$")
 DEFINITION = re.compile(r"^\[([^\]]+)\]:\s*(\S+)", re.MULTILINE)
 INLINE_LINK = re.compile(r"!?\[[^\]\n]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 REFERENCE = re.compile(r"!?\[[^\]\n]+\]\[([^\]\n]+)\]")
+AGENTIC_STAGE = "14-agentic-workflows"
+AGENTIC_COMPILER = "v0.88.8"
+
+
+def solution_kind(path):
+    """Only designated foreign/generated examples use a different contract."""
+    if path.parent.name == "16-migration" and path.name == "azure-pipelines.yml":
+        return "azure"
+    if path.parent.name == AGENTIC_STAGE and path.name == "pets-test-plan.lock.yml":
+        return "agentic"
+    return "actions"
+
+
+def agentic_source(path):
+    sections = path.read_text().split("---", 2)
+    if len(sections) != 3 or sections[0].strip():
+        raise ValueError("agentic source must start with YAML frontmatter")
+    return yaml.load(sections[1], Loader=yaml.BaseLoader)
+
+
+def agentic_errors(path, document):
+    """Check lab policy; check_agentic.py verifies compilation and freshness."""
+    errors = []
+    source_path = path.with_name("pets-test-plan.md")
+    if not source_path.exists():
+        return ["compiled agentic workflow is missing its Markdown source"]
+    try:
+        source = agentic_source(source_path)
+        metadata_line = path.read_text().splitlines()[0]
+        prefix = "# gh-aw-metadata: "
+        if not metadata_line.startswith(prefix):
+            return ["missing compiler metadata"]
+        metadata = json.loads(metadata_line.removeprefix(prefix))
+    except (ValueError, yaml.YAMLError, IndexError) as error:
+        return [f"invalid agentic source or metadata: {error}"]
+    if not isinstance(source, dict) or not isinstance(metadata, dict) or not isinstance(document, dict):
+        return ["expected agentic source, metadata, and lock mappings"]
+    if metadata.get("compiler_version") != AGENTIC_COMPILER:
+        errors.append(f"expected compiler {AGENTIC_COMPILER}; review source and lock together")
+    if source.get("engine") != "copilot" or source.get("strict") != "true":
+        errors.append("agentic example must use the Copilot engine in strict mode")
+    triggers = source.get("on", {})
+    if set(triggers) != {"workflow_dispatch", "roles", "manual-approval", "reaction", "status-comment"}:
+        errors.append("agentic example must remain manual-only")
+    if triggers.get("manual-approval") != "pets-agentic":
+        errors.append("agentic activation must require pets-agentic")
+    if source.get("permissions") != {"contents": "read"}:
+        errors.append("personal-fork agent must have only contents: read")
+    if source.get("checkout") != "false" or source.get("network") != "defaults":
+        errors.append("agent checkout must be disabled and network must use defaults")
+    tools = source.get("tools", {})
+    if set(tools) != {"bash", "edit", "cli-proxy", "github"} or any(
+        tools.get(key) != "false" for key in ("bash", "edit", "cli-proxy")
+    ):
+        errors.append("agent must not gain shell, edit, CLI proxy, or additional tools")
+    expected_github = {
+        "mode": "local", "toolsets": ["repos"], "read-only": "true",
+        "allowed-repos": "${{ github.repository }}", "min-integrity": "approved",
+        "allowed": [{"name": "get_file_contents", "max-calls": "4"}],
+    }
+    if tools.get("github") != expected_github:
+        errors.append("agent GitHub tools must retain the bounded file-reading policy")
+    expected_outputs = {
+        "staged": "true", "report-failed-jobs": "false",
+        "threat-detection": {"max-ai-credits": "50"},
+        "create-issue": {"title-prefix": "[Pets test plan] ", "max": "1", "expires": "false"},
+    }
+    if source.get("safe-outputs") != expected_outputs:
+        errors.append("safe outputs must remain staged, bounded, and threat-detected")
+    for key, expected in {"timeout-minutes": "5", "max-ai-credits": "100", "max-turns": "8"}.items():
+        if source.get(key) != expected:
+            errors.append(f"agentic example must retain {key}: {expected}")
+    guard = "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)"
+    if source.get("if") != guard:
+        errors.append("agent must remain restricted to the default branch")
+    jobs = document.get("jobs", {})
+    if set(jobs) != {"pre_activation", "activation", "agent", "detection", "safe_outputs", "conclusion"}:
+        errors.append("unexpected compiler jobs; review generated workflow")
+    if set(document.get("on", {})) != {"workflow_dispatch"} or document.get("permissions") != {}:
+        errors.append("compiled workflow must remain manual with no top-level permissions")
+    if jobs.get("activation", {}).get("environment") != "pets-agentic":
+        errors.append("compiled activation must retain approval")
+    if jobs.get("pre_activation", {}).get("if") != guard:
+        errors.append("compiled workflow must check the default branch before activation")
+    agent = jobs.get("agent", {})
+    if agent.get("permissions") != {"contents": "read"} or agent.get("needs") != "activation":
+        errors.append("compiled agent must remain read-only and depend on activation")
+    if agent.get("timeout-minutes") != "15" or jobs.get("detection", {}).get("timeout-minutes") != "5":
+        errors.append("compiled agent/detection timeouts changed")
+    safe = jobs.get("safe_outputs", {})
+    if safe.get("permissions") != {} or safe.get("env", {}).get("GH_AW_SAFE_OUTPUTS_STAGED") != "true":
+        errors.append("compiled safe outputs must be staged without write scopes")
+    for name, job in jobs.items():
+        for permission, level in job.get("permissions", {}).items():
+            if level == "write" and not (name == "conclusion" and permission in {"actions", "issues"}):
+                errors.append(f"{name}: unexpected compiled write permission: {permission}")
+        for step in job.get("steps", []):
+            action = step.get("uses", "")
+            if action and not PIN.fullmatch(action):
+                errors.append(f"{name}: compiled action is not pinned: {action}")
+            if action.startswith("actions/checkout@") and step.get("with", {}).get("persist-credentials") != "false":
+                errors.append(f"{name}: compiled checkout must not persist credentials")
+    return errors
+
+
+def azure_errors(document):
+    if not isinstance(document, dict):
+        return ["expected an Azure Pipelines mapping"]
+    errors = []
+    if document.get("trigger") != "none" or document.get("pr") != "none":
+        errors.append("migration source must keep trigger and pr disabled")
+    if any(key in document for key in ("on", "permissions")):
+        errors.append("Azure source must not be treated as an Actions workflow")
+    jobs = list(document.get("jobs", []))
+    for stage in document.get("stages", []):
+        jobs.extend(stage.get("jobs", []))
+    if not jobs:
+        errors.append("Azure migration source has no jobs")
+    for job in jobs:
+        if not isinstance(job, dict):
+            errors.append("Azure jobs must be mappings in a list")
+            continue
+        name = job.get("job", "<unnamed>")
+        timeout = job.get("timeoutInMinutes", "")
+        if not str(timeout).isdigit() or not 1 <= int(timeout) <= 30:
+            errors.append(f"{name}: expected Azure timeoutInMinutes from 1 to 30")
+        if "deployment" in job:
+            errors.append("migration lab must not deploy")
+    return errors
 
 
 def markdown_errors(path):
@@ -160,8 +290,15 @@ def check(track=TRACK):
             errors.append(f"{path.relative_to(ROOT)}: {error}")
             continue
         examples.append(document)
-        snapshots[path] = document
-        errors.extend(f"{path.relative_to(ROOT)}: {error}" for error in workflow_errors(document))
+        kind = solution_kind(path)
+        if kind == "azure":
+            findings = azure_errors(document)
+        elif kind == "agentic":
+            findings = agentic_errors(path, document)
+        else:
+            snapshots[path] = document
+            findings = workflow_errors(document)
+        errors.extend(f"{path.relative_to(ROOT)}: {error}" for error in findings)
     for path, document in snapshots.items():
         errors.extend(f"{path.relative_to(ROOT)}: {error}" for error in reference_errors(document, snapshots))
     for path in sorted(track.glob("*.md")):

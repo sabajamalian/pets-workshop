@@ -38,6 +38,15 @@ failed step, not the final gate: the gate summarizes earlier results.
 | Approval never requested | Environment name and protection configuration | Create and protect the environment before running the workflow. Referencing an unconfigured name is not an approval rule. |
 | Cannot approve your own run | Prevent self-review and reviewer eligibility | Have a different configured reviewer approve it. Keep the protection enabled. |
 | Copilot CLI denies access or a flag | Entitlement, organization policy, pinned version and current reference | Fail closed, have the owner review the setup, and keep using the credential-free path. Never retry by dropping tool restrictions. |
+| `gh aw compile` rejects a field | `gh aw version`, error location, and lesson 14's pinned compiler | Use v0.88.8 for the snapshot or review a deliberate upgrade. Preview docs can describe fields newer than an installed compiler. |
+| Agentic source changed but behavior didn't | Markdown and `.lock.yml` at the run's SHA | Recompile and commit both. Actions executes the generated YAML, not Markdown alone; run the [freshness check][validation]. |
+| Agent fails authentication after approval | `COPILOT_GITHUB_TOKEN` repository secret, Copilot access and billing policy | Follow [lesson 14][agentic]. The activation environment doesn't make its secrets available to every generated job. Personal forks cannot assume organization-token billing. |
+| Agentic workflow finishes but no issue appears | `safe-outputs.staged` and the safe-output job summary | Staged mode intentionally previews the issue. It still runs AI. Do not disable staged mode just to make an issue appear. |
+| Agent can't read a file or detection fails | Repository allowlist, approved-integrity policy, exact commit, tool logs, detection output | Inspect the denial or missing evidence. Do not add shell access, broad tokens, or disable detection to force success. |
+| Agent hits a time, turn, or credit limit | Agent and detection logs, separate credit limits, Actions usage | Stop and review the task and budget with the owner. Re-running consumes usage again. |
+| Azure YAML fails actionlint | Which migration file was selected | `azure-pipelines.yml` is Azure syntax, not Actions YAML. Validate the [migration source and target][migration] with their respective tools. |
+| Importer leaves a task untranslated | Audit/dry-run report, extension version, custom tasks and templates | Manually map the behavior and test it. An output YAML file is not proof of migration parity. |
+| Migrated CI differs or remains queued | Source SHA, triggers/branch policy, runtime, working directory, pool/runner access | Compare the same commit and commands. Reconfigure identities and approvals explicitly; never copy a service-connection secret into the workflow. |
 
 ## Temporary debug logging
 
@@ -66,4 +75,7 @@ not as results inferred from valid YAML.
 [artifacts]: 10-artifacts-and-reports.md
 [environments]: 12-protected-environments.md
 [solutions]: solutions/README.md
+[validation]: solutions/README.md#maintaining-the-examples
+[agentic]: 14-agentic-workflows.md
+[migration]: 16-migrating-azure-pipelines.md
 [debug]: https://docs.github.com/actions/monitoring-and-troubleshooting-workflows/enabling-debug-logging

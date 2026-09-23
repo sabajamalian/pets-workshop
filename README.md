@@ -6,7 +6,7 @@ The available workshops are:
 
 - **[One hour](./content/1-hour/README.md)** — focused on GitHub Copilot
 - **[Full-day](./content/full-day/README.md)** — a full day-in-the-life of a developer using GitHub for their DevOps processes
-- **[GitHub Actions](./content/github-actions/README.md)**: Build CI/CD pipelines for Azure, then explore artifacts, runners, approval gates, and safe AI-assisted automation in optional advanced lessons.
+- **[GitHub Actions](./content/github-actions/README.md)**: Build CI/CD pipelines for Azure, then explore artifacts, runners, approval gates, GitHub Agentic Workflows, and Azure Pipelines migration in optional advanced lessons.
 
 ## Getting started
 

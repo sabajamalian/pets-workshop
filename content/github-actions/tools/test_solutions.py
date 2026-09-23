@@ -10,7 +10,7 @@ from pathlib import Path
 
 import yaml
 
-from check_workshop import TRACK
+from check_workshop import TRACK, agentic_source, solution_kind
 
 
 def solution(relative):
@@ -225,6 +225,8 @@ class GateTests(unittest.TestCase):
     def test_each_non_success_result_blocks_every_aggregate_gate(self):
         found = 0
         for path in sorted((TRACK / "solutions").rglob("*.yml")):
+            if solution_kind(path) != "actions":
+                continue
             data = yaml.load(path.read_text(), Loader=yaml.BaseLoader)
             for name, job in data.get("jobs", {}).items():
                 if name not in {"tests-passed", "capstone-passed"}:
@@ -295,22 +297,30 @@ class AIWorkflowTests(unittest.TestCase):
                         ref == "refs/heads/main" and not dry_run,
                     )
 
-    def test_agentic_approval_requires_successful_default_branch_simulation(self):
-        workflow = solution("14-agentic-workflows/agentic-safe.yml")
+    def test_agentic_default_branch_gate_precedes_inference(self):
+        source = agentic_source(TRACK / "solutions/14-agentic-workflows/pets-test-plan.md")
+        workflow = solution("14-agentic-workflows/pets-test-plan.lock.yml")
         self.assertEqual(set(workflow["on"]), {"workflow_dispatch"})
-        self.assertEqual(workflow["jobs"]["human-audit"]["environment"], "pets-agentic")
-        self.assertNotIn("${{ secrets.", yaml.dump(workflow))
+        self.assertEqual(workflow["jobs"]["activation"]["environment"], "pets-agentic")
+        self.assertEqual(workflow["jobs"]["agent"]["needs"], "activation")
         for ref in ("refs/heads/main", "refs/heads/feature", "refs/tags/main"):
-            for result in ("success", "failure", "cancelled", "skipped"):
-                context = {
-                    "github": {"ref": ref, "event": {"repository": {"default_branch": "main"}}},
-                    "needs": {"simulate": {"result": result}},
-                }
-                with self.subTest(ref=ref, result=result):
-                    self.assertEqual(
-                        condition_result(workflow["jobs"]["human-audit"]["if"], context),
-                        ref == "refs/heads/main" and result == "success",
-                    )
+            context = {"github": {"ref": ref, "event": {"repository": {"default_branch": "main"}}}}
+            with self.subTest(ref=ref):
+                self.assertEqual(condition_result(source["if"], context), ref == "refs/heads/main")
+                self.assertEqual(
+                    condition_result(workflow["jobs"]["pre_activation"]["if"], context),
+                    ref == "refs/heads/main",
+                )
+        steps = workflow["jobs"]["agent"]["steps"]
+        execution = next(step for step in steps if step.get("id") == "agentic_execution")
+        self.assertEqual(execution["timeout-minutes"], "5")
+        self.assertIn("secrets.COPILOT_GITHUB_TOKEN", yaml.dump(steps))
+        self.assertIn("awf --config", execution["run"])
+        self.assertIn("github(get_file_contents)", execution["run"])
+        self.assertNotIn("actions/checkout@", yaml.dump(steps))
+        safe_steps = yaml.dump(workflow["jobs"]["safe_outputs"]["steps"])
+        self.assertIn("GH_AW_SAFE_OUTPUTS_STAGED", safe_steps)
+        self.assertIn("needs.detection.result == 'success'", workflow["jobs"]["safe_outputs"]["if"])
 
 
 @unittest.skipUnless(shutil.which("sha256sum"), "artifact shell commands require sha256sum")
@@ -319,7 +329,6 @@ class ArtifactTests(unittest.TestCase):
         for relative in (
             "10-artifacts/artifacts.yml",
             "12-environments/protected-release.yml",
-            "14-agentic-workflows/agentic-safe.yml",
             "15-capstone/capstone.yml",
         ):
             data = solution(relative)

@@ -239,9 +239,9 @@ You now have a credential-free report and a separately approved example of a
 minimal-context CLI call. You can distinguish the prompt from the permission
 boundary and recognize generated prose as untrusted output.
 
-Next, [simulate an agentic lifecycle][walkthrough-next] using real Pets API
-tests, deterministic acceptance checks, and a human audit gate, without calling
-any model.
+Next, [author a GitHub Agentic Workflow][walkthrough-next] with Markdown,
+`gh aw` compilation, and staged safe outputs. Compilation is credential-free;
+the separately approved execution uses a real AI engine.
 
 ## Resources
 

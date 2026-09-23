@@ -6,7 +6,8 @@
 [GitHub Actions][github-actions] lets you build, test, and deploy code from your
 repository. The core workshop builds a CI/CD pipeline for the shelter application,
 from automated tests to Azure deployment. An optional advanced continuation adds
-artifacts, runner choices, human approval, and bounded AI-assisted automation.
+artifacts, runner choices, human approval, GitHub Agentic Workflows, and migration
+from Azure Pipelines.
 
 ## Scenario
 
@@ -24,8 +25,10 @@ To complete this workshop, you will need the following:
 
 Repository-owner access is needed to configure rulesets and environments. Advanced
 approval exercises need supported environment protection rules and another eligible
-reviewer. Self-hosted hardware and an eligible Copilot plan are optional, not
-prerequisites for the credential-free advanced labs. See [setup][setup] for the
+reviewer. Self-hosted hardware is optional. Lesson 13 has a credential-free dry run;
+lesson 14 can be compiled without AI credentials, but executing its real agent
+requires approved Copilot access and a usage budget. The optional migration lesson
+can be studied without an Azure DevOps organization. See [setup][setup] for the
 owner/learner boundaries.
 
 > [!NOTE]
@@ -56,8 +59,9 @@ approval exercises do not require a cloud account.
 | [11. Runners and hardware][runners] | Run a small cross-OS test matrix and explore runner access, cost, and optional self-hosted setup. |
 | [12. Protected environments][environments] | Observe reviewer approval with no credentials, then optionally protect Azure deployment. |
 | [13. GitHub Copilot CLI][copilot-cli] | Start with a dry run and optionally approve a restricted, read-only CLI invocation. |
-| [14. Agentic workflows][agentic] | Simulate planning, bounded execution, validation, and human review without a model or autonomous writes. |
+| [14. GitHub Agentic Workflows][agentic] | Author Markdown, compile with `gh aw`, and optionally run a protected AI review with staged safe outputs. |
 | [15. Capstone][capstone] | Combine CI gates, artifact verification, post-merge checks, and optional approved Azure deployment. |
+| [16. Migrating Azure Pipelines][migration] | Compare equivalent Pets pipelines, try an optional Actions Importer dry run, and plan validation and cutover. |
 
 ## Examples and troubleshooting
 
@@ -72,9 +76,10 @@ Use the [troubleshooting reference][troubleshooting] to diagnose failures, and t
 Do not copy all solution stages at once: later stages replace or extend earlier
 files deliberately.
 
-The AI workflow defaults do not call a model. The agentic lesson is a simulation,
-not a complete live-agent implementation. Checksummed builds are not attestations,
-and `azd up` may rebuild rather than promote the uploaded build artifact.
+Compiling the agentic example doesn't call a model; dispatching it does, even with
+staged outputs. No example is installed or dispatched automatically. Checksummed
+builds are not attestations, and `azd up` may rebuild rather than promote the
+uploaded build artifact.
 
 ## Resources
 
@@ -112,6 +117,7 @@ and `azd up` may rebuild rather than promote the uploaded build artifact.
 [copilot-cli]: ./13-copilot-cli.md
 [agentic]: ./14-agentic-workflows.md
 [capstone]: ./15-capstone.md
+[migration]: ./16-migrating-azure-pipelines.md
 [solutions]: ./solutions/README.md
 [validation]: ./solutions/README.md#maintaining-the-examples
 [troubleshooting]: ./troubleshooting.md

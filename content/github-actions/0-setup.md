@@ -17,7 +17,7 @@ The shelter's volunteers need a safe place to learn CI/CD without changing the l
 - **Repository owners** configure security features, Actions policies, and branch rulesets. Public repositories support the core exercises on GitHub Free; private repository security and protection features depend on the account's plan and enabled products.
 - **Organization owners** handle organization-wide required workflows. This is a separate, plan-dependent extension of the repository status-check exercise, not a learner prerequisite.
 - **Azure deployment is optional.** It requires an approved subscription, permission to create resources and a federated identity, and permission to configure repository variables. Resources incur charges until removed. You can read lessons 6 and 8 without deploying and still complete the CI exercises.
-- Advanced environment protections, runner administration, and live AI use have their own owner and plan requirements. The default AI exercises don't need credentials or a paid model.
+- Advanced environment protections, runner administration, and live AI use have their own owner and plan requirements. Lesson 13's dry run and lesson 14's compilation don't need AI credentials. Running lesson 14's actual agent requires approved Copilot access and can incur charges.
 
 No checked-in solution runs automatically. GitHub only discovers workflow files installed directly into `.github/workflows/`. The [solution guide][solutions] lists each stage's exact copy destinations and companion files. Copy one lesson's named files, not the whole solution tree. A `run-tests.yml` snapshot replaces that file from the previous lesson; it isn't a second workflow.
 

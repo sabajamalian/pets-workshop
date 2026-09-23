@@ -8,7 +8,10 @@ from unittest.mock import Mock, patch
 
 import yaml
 
-from check_workshop import markdown_errors, reference_errors, snippet_errors, workflow_errors
+from check_workshop import (
+    TRACK, agentic_errors, azure_errors, markdown_errors, reference_errors,
+    snippet_errors, solution_kind, workflow_errors,
+)
 
 
 VALID = """
@@ -144,6 +147,70 @@ class MarkdownChecks(unittest.TestCase):
             index.write_text("```text\n[Example](does-not-exist.md)\n```\n")
             with patch("check_workshop.ROOT", root):
                 self.assertEqual(markdown_errors(index), [])
+
+
+class WorkflowFormatChecks(unittest.TestCase):
+    def setUp(self):
+        self.stage = TRACK / "solutions/14-agentic-workflows"
+        self.lock = self.stage / "pets-test-plan.lock.yml"
+        self.document = yaml.load(self.lock.read_text(), Loader=yaml.BaseLoader)
+
+    def test_only_designated_solutions_get_special_format_handling(self):
+        self.assertEqual(solution_kind(self.lock), "agentic")
+        self.assertEqual(solution_kind(Path("16-migration/azure-pipelines.yml")), "azure")
+        for path in ("other/example.lock.yml", "other/azure-pipelines.yml", "16-migration/migrated-ci.yml"):
+            self.assertEqual(solution_kind(Path(path)), "actions")
+
+    def test_compiled_example_keeps_its_own_contract(self):
+        self.assertEqual(agentic_errors(self.lock, self.document), [])
+        self.assertTrue(workflow_errors(self.document))
+
+    def test_compiled_agent_cannot_gain_write_access(self):
+        self.document["jobs"]["agent"]["permissions"]["contents"] = "write"
+        self.assertTrue(any("read-only" in item for item in agentic_errors(self.lock, self.document)))
+
+    def test_compiled_safe_outputs_cannot_be_unstaged(self):
+        self.document["jobs"]["safe_outputs"]["env"]["GH_AW_SAFE_OUTPUTS_STAGED"] = "false"
+        self.assertTrue(any("staged" in item for item in agentic_errors(self.lock, self.document)))
+
+    def test_compiled_approval_cannot_be_removed(self):
+        del self.document["jobs"]["activation"]["environment"]
+        self.assertTrue(any("approval" in item for item in agentic_errors(self.lock, self.document)))
+
+    def test_compiled_pins_cannot_be_mutable(self):
+        step = next(step for step in self.document["jobs"]["agent"]["steps"] if "uses" in step)
+        step["uses"] = "github/gh-aw-actions/setup@main"
+        self.assertTrue(any("not pinned" in item for item in agentic_errors(self.lock, self.document)))
+
+    def test_source_contract_rejects_new_tools_triggers_and_outputs(self):
+        source = (self.stage / "pets-test-plan.md").read_text()
+        for original, replacement, diagnostic in (
+            ("  bash: false", "  bash: true", "shell"),
+            ("  workflow_dispatch:", "  push:", "manual"),
+            ("  staged: true", "  staged: false", "staged"),
+            ("    max: 1", "    max: 2", "bounded"),
+            ("    read-only: true", "    read-only: false", "file-reading"),
+            ("max-ai-credits: 100", "max-ai-credits: -1", "max-ai-credits"),
+        ):
+            with self.subTest(diagnostic=diagnostic), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                lock = root / self.lock.name
+                lock.write_text(self.lock.read_text())
+                (root / "pets-test-plan.md").write_text(source.replace(original, replacement))
+                self.assertTrue(any(diagnostic in item for item in agentic_errors(lock, self.document)))
+
+    def test_missing_agentic_source_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertIn("missing", agentic_errors(Path(directory) / self.lock.name, self.document)[0])
+
+    def test_azure_format_still_enforces_manual_bounded_ci(self):
+        source = {"trigger": "none", "pr": "none", "jobs": [{"job": "api", "timeoutInMinutes": "10"}]}
+        self.assertEqual(azure_errors(source), [])
+        source["trigger"] = ["main"]
+        source["jobs"][0]["timeoutInMinutes"] = "0"
+        findings = azure_errors(source)
+        self.assertTrue(any("trigger" in item for item in findings))
+        self.assertTrue(any("timeout" in item for item in findings))
 
 
 if __name__ == "__main__":

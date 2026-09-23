@@ -1,6 +1,6 @@
 # Capstone: From Pull Request to Approved Deployment
 
-| [Previous: Agentic workflows][walkthrough-previous] | [Next: Workshop overview][walkthrough-next] |
+| [Previous: Agentic workflows][walkthrough-previous] | [Next: Optional Azure Pipelines migration][walkthrough-next] |
 |:-----------------------------------|------------------------------------------:|
 
 ## Scenario
@@ -109,7 +109,8 @@ trusted-operator capability.
 
 You've assembled a pipeline with real application checks, a stable merge gate,
 build handoff, diagnostic retention, and an explicit deployment approval boundary.
-Return to the [workshop overview][walkthrough-next] for the full lesson map.
+Continue with the optional [Azure Pipelines migration lesson][walkthrough-next],
+or return to the [workshop overview](README.md) for the full lesson map.
 
 Further exercises could add immutable image promotion, staging, artifact
 attestations, or a bounded draft-PR agent. Those require additional design and are
@@ -121,11 +122,11 @@ not implemented by this capstone.
 - [Troubleshooting][troubleshooting]
 - [GitHub Actions documentation][actions]
 
-| [Previous: Agentic workflows][walkthrough-previous] | [Next: Workshop overview][walkthrough-next] |
+| [Previous: Agentic workflows][walkthrough-previous] | [Next: Optional Azure Pipelines migration][walkthrough-next] |
 |:-----------------------------------|------------------------------------------:|
 
 [walkthrough-previous]: 14-agentic-workflows.md
-[walkthrough-next]: README.md
+[walkthrough-next]: 16-migrating-azure-pipelines.md
 [artifacts]: 10-artifacts-and-reports.md
 [environments]: 12-protected-environments.md
 [custom]: 7-custom-actions.md
