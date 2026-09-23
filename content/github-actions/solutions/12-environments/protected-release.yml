@@ -1,0 +1,88 @@
+name: Protected Release Verification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pets-production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: app/client/package-lock.json
+      - run: npm ci
+        working-directory: app/client
+      - run: npm run build
+        working-directory: app/client
+      - name: Package the build
+        run: |
+          mkdir -p "$RUNNER_TEMP/pets-build"
+          tar -czf "$RUNNER_TEMP/pets-build/site.tar.gz" -C app/client/dist .
+          cd "$RUNNER_TEMP/pets-build"
+          printf '%s\n' "$GITHUB_SHA" > commit.txt
+          sha256sum site.tar.gz commit.txt > SHA256SUMS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        id: upload
+        with:
+          name: pets-release-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/pets-build/
+          if-no-files-found: error
+          retention-days: 7
+  verify:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require the producer's artifact ID
+        env:
+          ARTIFACT_ID: ${{ needs.build.outputs.artifact-id }}
+        run: '[[ "$ARTIFACT_ID" =~ ^[0-9]+$ ]] || { echo "::error::Missing artifact ID"; exit 1; }'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact-id }}
+          merge-multiple: true
+          path: build
+      - working-directory: build
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          sha256sum --check SHA256SUMS
+          test "$(cat commit.txt)" = "$EXPECTED_SHA"
+  approve:
+    needs: [build, verify]
+    environment: pets-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require the producer's artifact ID
+        env:
+          ARTIFACT_ID: ${{ needs.build.outputs.artifact-id }}
+        run: '[[ "$ARTIFACT_ID" =~ ^[0-9]+$ ]] || { echo "::error::Missing artifact ID"; exit 1; }'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact-id }}
+          merge-multiple: true
+          path: build
+      - working-directory: build
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          sha256sum --check SHA256SUMS
+          test "$(cat commit.txt)" = "$EXPECTED_SHA"
+          echo "Approved build verified. Nothing was deployed." >> "$GITHUB_STEP_SUMMARY"

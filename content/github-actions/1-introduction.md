@@ -27,7 +27,7 @@ A workflow file is written in YAML and lives in the `.github/workflows/` directo
 - `jobs`: Contains one or more jobs, each with a unique identifier.
   - `runs-on`: Specifies the runner environment (e.g., `ubuntu-latest`).
   - `steps`: An ordered list of tasks the job performs.
-    - `uses`: References a reusable action (e.g., `actions/checkout@v4`).
+    - `uses`: References an action; later lessons pin action references to reviewed commit SHAs.
     - `run`: Executes a shell command.
 
 ## Create your first workflow
@@ -43,26 +43,63 @@ Let's start with the classic "Hello World" — a workflow you can trigger manual
 
     on:
       workflow_dispatch:
+        inputs:
+          greeting:
+            description: Greeting for the shelter team
+            type: string
+            required: true
+            default: Hello, shelter team!
+          simulate-failure:
+            description: Fail once to practice reading logs
+            type: boolean
+            required: false
+            default: false
+
+    permissions:
+      contents: read
 
     jobs:
       greet:
         runs-on: ubuntu-latest
-
+        timeout-minutes: 5
         steps:
           - name: Say hello
-            run: echo "Hello, GitHub Actions!"
+            env:
+              GREETING: ${{ inputs.greeting }}
+            run: printf '%s\n' "$GREETING"
 
           - name: Show environment info
             run: |
-              echo "Runner OS: $RUNNER_OS"
-              echo "Repository: $GITHUB_REPOSITORY"
-              echo "Triggered by: $GITHUB_ACTOR"
+              printf 'Runner OS: %s\n' "$RUNNER_OS"
+              printf 'Repository: %s\n' "$GITHUB_REPOSITORY"
+              printf 'Triggered by: %s\n' "$GITHUB_ACTOR"
+
+          - name: Practice a failure
+            if: inputs.simulate-failure
+            run: |
+              echo "::error::This failure was requested for practice."
+              exit 1
+
+          - name: Write a job summary
+            if: always()
+            env:
+              JOB_STATUS: ${{ job.status }}
+            run: |
+              printf '## Shelter workflow\n\nResult before summary: %s\n' "$JOB_STATUS" >> "$GITHUB_STEP_SUMMARY"
     ```
 
 4. Save the file.
 
+The complete [hello.yml solution][hello-solution] installs at `.github/workflows/hello.yml`.
+
+The string input is data, not a shell command. GitHub resolves `${{ inputs.greeting }}` before a step runs; Bash expands the quoted `"$GREETING"` at execution time. Putting the context expression in `env` avoids inserting user text into shell source. Try a greeting containing quotes or the literal text `$(whoami)` and confirm it prints unchanged.
+
+The boolean input keeps its type in the `inputs` context. `permissions` explicitly limits the workflow's token to repository reads, and `timeout-minutes` bounds the job even if a command hangs. This workflow doesn't need a checkout.
+
 > [!NOTE]
 > The `workflow_dispatch` event lets you trigger the workflow manually from the **Actions** tab. This is useful for testing workflows without needing to push code changes every time.
+
+The workflow file must first exist on the repository's default branch for manual runs to be available.
 
 ## Push and run
 
@@ -100,6 +137,12 @@ Once the run completes, let's explore what happened.
 > [!TIP]
 > You can search within the logs using the search box at the top of the log viewer, and expand or collapse individual steps. This becomes very useful as workflows grow more complex.
 
+## Practice failure and recovery
+
+1. Run **Hello World** with **simulate-failure** selected.
+2. Find the failing step and its nonzero exit code. Open the run summary; the summary step still runs because of `if: always()`. It doesn't turn a failed job green.
+3. Start a new run with **simulate-failure** cleared. Confirm it succeeds. Re-running the old failed run keeps its original inputs, so it will fail again.
+
 ## Summary and next steps
 
 Congratulations! You've created and run your first GitHub Actions workflow. You've learned how to define a workflow in YAML, trigger it manually with `workflow_dispatch`, and navigate the logs in the Actions UI.
@@ -117,6 +160,7 @@ Next, we'll put this knowledge to work by [securing the development pipeline][wa
 |:-----------------------------------|------------------------------------------:|
 
 [actions-marketplace]: https://github.com/marketplace?type=actions
+[hello-solution]: solutions/01-introduction/hello.yml
 [github-actions]: https://github.com/features/actions
 [github-actions-docs]: https://docs.github.com/actions
 [understanding-actions]: https://docs.github.com/actions/about-github-actions/understanding-github-actions

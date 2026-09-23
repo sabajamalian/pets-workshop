@@ -7,6 +7,23 @@ To complete this workshop you will need to create a repository with a copy of th
 
 The repository for this workshop is configured as a template, so we can use it to create your repository.
 
+## Scenario
+
+The shelter's volunteers need a safe place to learn CI/CD without changing the live adoption service. Use your own training repository and review each workflow before enabling it.
+
+## Background and prerequisites
+
+- **Learners** need a GitHub account, permission to push to their training repository, Actions enabled, and a codespace or local editor with Git, Python 3.13, and a current Node.js 22 release (at least 22.12). The Python compatibility exercise also tests 3.12 and 3.14.
+- **Repository owners** configure security features, Actions policies, and branch rulesets. Public repositories support the core exercises on GitHub Free; private repository security and protection features depend on the account's plan and enabled products.
+- **Organization owners** handle organization-wide required workflows. This is a separate, plan-dependent extension of the repository status-check exercise, not a learner prerequisite.
+- **Azure deployment is optional.** It requires an approved subscription, permission to create resources and a federated identity, and permission to configure repository variables. Resources incur charges until removed. You can read lessons 6 and 8 without deploying and still complete the CI exercises.
+- Advanced environment protections, runner administration, and live AI use have their own owner and plan requirements. Lesson 13's dry run and lesson 14's compilation don't need AI credentials. Running lesson 14's actual agent requires approved Copilot access and can incur charges.
+
+No checked-in solution runs automatically. GitHub only discovers workflow files installed directly into `.github/workflows/`. The [solution guide][solutions] lists each stage's exact copy destinations and companion files. Copy one lesson's named files, not the whole solution tree. A `run-tests.yml` snapshot replaces that file from the previous lesson; it isn't a second workflow.
+
+> [!IMPORTANT]
+> Repository creation, pushes, security settings, Azure provisioning, and runner registration are exercises you choose to perform in your own training account. Don't use production credentials, register a persistent runner for untrusted PRs, or enable deployment snapshots before reviewing their prerequisites.
+
 ## Create your repository
 
 Let's create the repository you'll use for your workshop.
@@ -39,7 +56,14 @@ Now let's open a codespace so you have a development environment ready to go.
 
 ## Summary and next steps
 
-You've created the repository and opened a codespace — you're ready to start building! Next let's [create your first workflow][walkthrough-next].
+You've created the repository and opened a codespace. Next let's [create your first workflow][walkthrough-next].
+
+## Resources
+
+- [GitHub Actions usage and billing][actions-billing]
+- [GitHub security feature availability][security-availability]
+- [Installing Node.js][node-download]
+- [Opt-in solution guide][solutions]
 
 | [← GitHub Actions: From CI to CD][walkthrough-previous] | [Next: Introduction & Your First Workflow →][walkthrough-next] |
 |:-----------------------------------|------------------------------------------:|
@@ -47,5 +71,9 @@ You've created the repository and opened a codespace — you're ready to start b
 [fork-repo]: https://docs.github.com/get-started/quickstart/fork-a-repo
 [template-repo]: https://docs.github.com/repositories/creating-and-managing-repositories/creating-a-template-repository
 [repo-root]: /
+[actions-billing]: https://docs.github.com/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions
+[security-availability]: https://docs.github.com/get-started/learning-about-github/about-github-advanced-security
+[node-download]: https://nodejs.org/en/download
+[solutions]: solutions/README.md
 [walkthrough-previous]: README.md
 [walkthrough-next]: 1-introduction.md
