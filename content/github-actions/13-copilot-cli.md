@@ -47,6 +47,14 @@ The example was checked against official documentation on **2026-09-21**:
   **1.0.87**, which has an [official release][cli-release]. The source workshop's
   earlier version is not a compatibility guarantee. npm installation needs
   **Node.js 22 or later**; this job selects Node.js 22.
+- The [runtime manifest][cli-manifest] and [reviewed lockfile][cli-lock] pin the
+  CLI's transitive and platform-specific dependencies with integrity hashes.
+  The approved job copies both outside the checkout and uses `npm ci
+  --ignore-scripts`, so it doesn't resolve fresh dependency ranges or run package
+  lifecycle scripts. A version upgrade requires reviewing the entire lockfile.
+  The lock omits registry-specific download URLs using npm's
+  `--omit-lockfile-registry-resolved` option; the exact versions and integrity
+  hashes still apply when npm fetches from the runner's configured registry.
 - A personal-account-owned, fine-grained PAT with the **Copilot Requests**
   account permission is a [supported authentication method][cli-auth]. A
   classic PAT is not supported. This example uses an environment-scoped PAT,
@@ -75,11 +83,11 @@ package installation, workflow, and helper remain trusted code.
    [report helper][solution-helper].
 2. Copy only `copilot-cli.yml` to `.github/workflows/copilot-cli.yml` in your
    workshop repository.
-3. Keep `report.py` at
-   `content/github-actions/solutions/13-copilot-cli/report.py`.
-   The workflow runs it from that location. `test_report.py` is an optional
+3. Keep `report.py` and `runtime/package.json` plus `runtime/package-lock.json`
+   under `content/github-actions/solutions/13-copilot-cli/`.
+   The workflow uses them from those locations. `test_report.py` is an optional
    local regression check, not a required workflow companion.
-4. Have the workflow and helper reviewed through your normal change process
+4. Have the workflow, helper, and runtime lockfile reviewed through your normal change process
    before installing them on the default branch. A workflow-dispatch file must
    exist there to appear in the Actions UI.
 
@@ -189,6 +197,12 @@ It uses a new `HOME`, `COPILOT_HOME`, and XDG configuration directory, with an
 explicit environment allowlist. It does not forward ambient GitHub tokens,
 provider keys, plugin configuration, or checkout credentials.
 
+The CLI installation step receives no Copilot token and uses the checked-in
+lockfile. Missing or inconsistent lockfiles and integrity failures stop that job;
+don't replace `npm ci` with `npm install` to bypass them. The token is supplied
+only to the subsequent report step. Locking dependencies makes installation
+reproducible; it doesn't establish that the reviewed package code is trustworthy.
+
 The reviewed restriction arguments are:
 
 ```text
@@ -247,6 +261,7 @@ the separately approved execution uses a real AI engine.
 
 - [Complete Copilot workflow][solution-workflow]
 - [Report helper][solution-helper] and [offline boundary tests][solution-tests]
+- [Runtime manifest][cli-manifest] and [dependency lockfile][cli-lock]
 - [Installing Copilot CLI][cli-install]
 - [Authenticating Copilot CLI][cli-auth]
 - [Command reference][cli-reference] and [programmatic reference][cli-programmatic]
@@ -264,6 +279,8 @@ the separately approved execution uses a real AI engine.
 [solution-workflow]: solutions/13-copilot-cli/copilot-cli.yml
 [solution-helper]: solutions/13-copilot-cli/report.py
 [solution-tests]: solutions/13-copilot-cli/test_report.py
+[cli-manifest]: solutions/13-copilot-cli/runtime/package.json
+[cli-lock]: solutions/13-copilot-cli/runtime/package-lock.json
 [cli-release]: https://github.com/github/copilot-cli/releases/tag/v1.0.87
 [cli-install]: https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli
 [cli-auth]: https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/authenticate-copilot-cli

@@ -51,6 +51,10 @@ jobs:
 
 # Review the shelter's API test coverage
 
+The file paths and commit below are best-effort prompt instructions. The GitHub
+tool enforces the repository, tool name, and call limit, but does not enforce
+path or ref selection. Do not claim that the tool verified these constraints.
+
 Help a shelter volunteer identify a small, useful improvement to the existing
 Flask API tests. Work only in repository `${{ github.repository }}` at commit
 `${{ env.PETS_REVIEW_SHA }}`.
@@ -71,6 +75,8 @@ Request one `create_issue` safe output containing a proposed test plan:
 - A short summary of the current coverage.
 - At most three proposed cases, each with the input, expected result, and reason.
 - Links to the relevant source at the inspected commit.
+- The requested commit and the paths and refs actually used in file-reading
+  calls. Explicitly flag any mismatch or unverified ref for human review.
 - A clear statement that this is an AI-generated proposal and no tests were run.
 
 Keep the body under 500 words. If the inspected tests already cover these behaviors,

@@ -23,7 +23,7 @@ installing a second copy under a different filename.
 | [10: Artifacts](10-artifacts/) | Install `artifacts.yml` under `.github/workflows`. It is an independent manual lab, not another automatic CI pipeline. |
 | [11: Runners](11-runners/) | Install `runner-matrix.yml` under `.github/workflows`. The default exercise uses hosted runners only. |
 | [12: Environments](12-environments/) | Configure `pets-production` first, then install `protected-release.yml`. This workflow verifies an approved artifact without deploying. |
-| [13: Copilot CLI](13-copilot-cli/) | Install `copilot-cli.yml`; keep its credential-free default. Configure `pets-copilot` and current authentication prerequisites before opting into a real CLI call. |
+| [13: Copilot CLI](13-copilot-cli/) | Install `copilot-cli.yml`; retain `report.py` and both `runtime/package*.json` files at their solution paths. Keep the credential-free default; configure `pets-copilot` before a real CLI call. |
 | [14: GitHub Agentic Workflows](14-agentic-workflows/) | Copy `pets-test-plan.md` to `.github/workflows`, compile with gh-aw v0.88.8, and review/commit its `.lock.yml` and action pins. Configure `pets-agentic` and Copilot authentication before any real run; outputs stay staged. |
 | [15: Capstone](15-capstone/) | Install `capstone.yml`, the stage 07 local action, and the stage 08 reusable deployment workflow. Keep deployment off unless Azure/OIDC and `pets-production` are configured. |
 | [16: Azure Pipelines migration](16-migration/) | Optional. Keep `azure-pipelines.yml` as an Azure DevOps source, never an Actions workflow. Install only `migrated-ci.yml` under `.github/workflows` for the manual GitHub parity lab. |
@@ -102,6 +102,14 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B -m unittest discover \
   -s content/github-actions/solutions/13-copilot-cli -p 'test_*.py' -v
 ```
 
+When updating lesson 13's CLI version, change `runtime/package.json`, regenerate
+the lock with `npm install --package-lock-only --ignore-scripts --no-audit
+--no-fund --omit-lockfile-registry-resolved` in that directory, and review every
+changed dependency and integrity hash. Keep the helper's version check in sync.
+The workflow must continue using `npm ci --ignore-scripts`; it must not regenerate
+the lock on a runner. Validate a fresh install and the CLI's version/help without
+providing AI credentials before authorizing any live run.
+
 For lesson 14, install/select **gh-aw v0.88.8** as described in the lesson, then run:
 
 ```bash
@@ -118,7 +126,7 @@ installed pinned binary without replacing your personal CLI extension.
 To refresh the stored snapshot after a source edit, use that same temporary layout:
 copy `pets-test-plan.md` and `pets-test-plan.lock.yml` into `.github/workflows`,
 and `actions-lock.json` into `.github/aw`. Run `gh aw compile pets-test-plan
---strict`, then copy the reviewed compiler outputs back into
+--strict --no-check-update`, then copy the reviewed compiler outputs back into
 `solutions/14-agentic-workflows/`. Never hand-edit the `.lock.yml`. Re-run the
 checker and actionlint after refreshing it. A compiler or dependency upgrade is a
 separate reviewed change, not a reason to ignore a freshness failure.

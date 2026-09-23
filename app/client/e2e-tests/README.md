@@ -19,7 +19,7 @@ npm ci
 npx playwright install chromium
 ```
 
-Use Node.js 22.22.2 or newer in the Node 22 line and Python 3.13. From
+Use Node.js 22.12.0 or newer in the Node 22 line and Python 3.13. From
 `app/client`, create a repository-local Python environment and select its
 interpreter explicitly (macOS/Linux):
 ```bash

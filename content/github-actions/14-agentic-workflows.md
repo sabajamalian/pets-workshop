@@ -34,16 +34,23 @@ workflow constrains its access and how its output can affect GitHub.
 | Trigger and approval | Manual dispatch on the default branch, followed by protected `pets-agentic` approval |
 | Engine | GitHub Copilot, authenticated separately from repository reads |
 | Tools | Read-only GitHub file access in this repository, at most four calls; no agent shell or editor |
-| Task | Compare `app/server/app.py` with `app/server/test_app.py` at the run's SHA |
+| Requested task | Compare `app/server/app.py` with `app/server/test_app.py` at the run's SHA; file and ref selection are best-effort prompt instructions |
 | Safe output | At most one proposed issue, staged for preview rather than published |
 | Detection and review | Compiler-provided threat detection, followed by a human checking the proposal against source |
 
 Safe outputs separate the agent's read permissions from jobs that process
 structured requests. They don't prove the proposal is correct or replace review.
-The file names and 500-word limit are prompt instructions, not filesystem or
-token-level access controls. The enforced read boundary is the repository and
-allowed GitHub tool. Only use this example with repository content approved for
-your selected AI provider.
+The file names, requested commit (`PETS_REVIEW_SHA`), and 500-word limit are
+best-effort prompt instructions. The tool does not restrict the path or ref passed
+to `get_file_contents`; the agent could read another tracked file or another ref
+within the permitted repository and still produce a staged issue. There is no
+automated check that binds the report to the requested commit.
+
+The enforced read boundary is the repository, tool name, call count, and integrity
+policy. This example is a repository-scoped advisory review. It does not guarantee
+an exact-commit or two-file-only review. Only use it when the repository content
+accessible through that policy is approved for your selected AI provider, not just
+the two files named in the prompt.
 
 ## 1. Review the source and compiler output
 
@@ -60,6 +67,8 @@ your selected AI provider.
    tool PAT is needed for this example.
 5. Read the prompt. It asks for evidence at `PETS_REVIEW_SHA`, populated from
    `github.sha`, and tells the agent not to run tests or invent missing coverage.
+   That requested SHA is not a tool-enforced ref restriction. Compare the actual
+   tool-call arguments with it before accepting the report.
 
 The safe-output configuration includes:
 
@@ -101,12 +110,19 @@ If the extension is already installed, review the version change first, then use
 The runtime version embedded in the lockfile is compiler-managed and is separate
 from the directly installed Copilot CLI in lesson 13.
 
-From your practice repository root, on a feature branch:
+From your practice repository root, on a feature branch, seed the reviewed pins.
+This command stops rather than replacing an existing agentic action cache; if you
+already have one, merge and review its entries with the supplied cache first.
 
 ```bash
-mkdir -p .github/workflows
+mkdir -p .github/workflows .github/aw
+if test -e .github/aw/actions-lock.json; then
+  printf '%s\n' 'Existing action cache: merge and review the supplied pins before compiling.' >&2
+  exit 1
+fi
+cp content/github-actions/solutions/14-agentic-workflows/actions-lock.json .github/aw/actions-lock.json
 cp content/github-actions/solutions/14-agentic-workflows/pets-test-plan.md .github/workflows/
-gh aw compile pets-test-plan --strict
+gh aw compile pets-test-plan --strict --no-check-update
 git status --short
 git diff -- .github/workflows/pets-test-plan.lock.yml .github/aw/actions-lock.json
 ```
@@ -183,12 +199,17 @@ compiler-added internal `aw_context` input empty.
 
 1. Observe the activation job waiting for `pets-agentic` approval. Have the
    independent reviewer inspect the run's source commit and approve it.
-2. Inspect the agent job: it reads the two files through the permitted tool and
-   proposes a test plan. There is no deterministic expected prose.
+2. Inspect the agent job's tool calls: confirm the requested paths and SHA were
+   actually used through the permitted tool. The prompt asks for those reads,
+   but the tool does not enforce them. There is no deterministic expected prose.
 3. Inspect detection and safe-output processing. The result should be a **staged
    issue preview**, not a new repository issue, commit, or pull request.
-4. Verify the proposal's source links, expected HTTP responses, and claims about
-   missing assertions. It must acknowledge that it didn't run the tests.
+4. Compare every file-reading call's path and ref with the requested files and
+   the run SHA, then check the returned evidence and source links. A branch name
+   or omitted ref is insufficient to establish that SHA. Reject the proposal if
+   the logs don't establish the requested scope; detection and staged output do
+   not validate it. Verify expected HTTP responses and claims about missing
+   assertions. The report must acknowledge that it didn't run the tests.
 5. If the engine reports missing data, a denied tool, or a budget limit, inspect
    that failure. Don't widen permissions or silently substitute a static report.
 
@@ -219,7 +240,7 @@ manual-only and inspect [cost management][costs] and account budgets before use.
 
 1. On a practice branch, narrow the prompt from at most three proposed cases to
    at most two. Keep its file paths, tools, permissions, and staged mode unchanged.
-2. Run `gh aw compile pets-test-plan --strict` again. Review source and lock
+2. Run `gh aw compile pets-test-plan --strict --no-check-update` again. Review source and lock
    together. The lock metadata records source hashes; some prompt changes may
    alter only metadata rather than visibly replacing generated steps.
 3. For a credential-free failure exercise, temporarily change `engine: copilot`

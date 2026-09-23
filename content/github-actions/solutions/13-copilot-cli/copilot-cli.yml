@@ -60,11 +60,15 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
-      - name: Install only the reviewed CLI version outside the checkout
+      - name: Install the reviewed CLI dependency tree outside the checkout
         shell: bash
         run: |
           set -euo pipefail
-          npm install --prefix "$RUNNER_TEMP/pets-cli-package" --no-audit --no-fund @github/copilot@1.0.87
+          mkdir "$RUNNER_TEMP/pets-cli-package"
+          cp content/github-actions/solutions/13-copilot-cli/runtime/package.json \
+            content/github-actions/solutions/13-copilot-cli/runtime/package-lock.json \
+            "$RUNNER_TEMP/pets-cli-package/"
+          npm ci --prefix "$RUNNER_TEMP/pets-cli-package" --ignore-scripts --no-audit --no-fund
       - name: Explain one trusted file with read-only tools
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.PETS_COPILOT_TOKEN }}

@@ -1,5 +1,6 @@
 """Exercise the actual solution shell commands without calling GitHub or Azure."""
 
+import json
 import os
 import re
 import shutil
@@ -273,6 +274,58 @@ class InputValidationTests(unittest.TestCase):
 
 
 class AIWorkflowTests(unittest.TestCase):
+    def test_cli_dependency_tree_is_locked_including_platform_packages(self):
+        stage = TRACK / "solutions/13-copilot-cli"
+        manifest = json.loads((stage / "runtime/package.json").read_text())
+        lock = json.loads((stage / "runtime/package-lock.json").read_text())
+        self.assertEqual(lock["lockfileVersion"], 3)
+        self.assertEqual(manifest["dependencies"], {"@github/copilot": "1.0.87"})
+        self.assertEqual(lock["packages"][""]["dependencies"], manifest["dependencies"])
+        cli = lock["packages"]["node_modules/@github/copilot"]
+        self.assertEqual(cli["version"], manifest["dependencies"]["@github/copilot"])
+        for name in (*cli["dependencies"], *cli["optionalDependencies"]):
+            self.assertIn(f"node_modules/{name}", lock["packages"])
+        for name, package in lock["packages"].items():
+            if not name:
+                continue
+            with self.subTest(package=name):
+                self.assertRegex(package["version"], r"^\d+\.\d+\.\d+$")
+                self.assertRegex(package["integrity"], r"^sha(?:512|256|1)-[A-Za-z0-9+/]+=*$")
+                self.assertFalse(package.get("hasInstallScript", False))
+                self.assertNotIn("resolved", package, "keep the lock portable across approved registries")
+
+    def test_cli_install_uses_lockfile_without_credentials_or_scripts(self):
+        workflow = solution("13-copilot-cli/copilot-cli.yml")
+        steps = workflow["jobs"]["approved-cli"]["steps"]
+        install = next(step for step in steps if "npm ci " in step.get("run", ""))
+        self.assertNotIn("secrets.", yaml.dump(install))
+        self.assertIn("--ignore-scripts", install["run"])
+        self.assertNotIn("npm install", yaml.dump(workflow))
+        self.assertNotIn("npm ci", yaml.dump(workflow["jobs"]["dry-run"]))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runner = root / "runner temp"
+            runner.mkdir()
+            bin_dir = root / "bin"
+            bin_dir.mkdir()
+            npm = bin_dir / "npm"
+            npm.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$RUNNER_TEMP/npm-args\"\n")
+            npm.chmod(0o755)
+            result = run_step(
+                install["run"], TRACK.parents[1], RUNNER_TEMP=str(runner),
+                PATH=str(bin_dir) + os.pathsep + os.environ["PATH"],
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for name in ("package.json", "package-lock.json"):
+                self.assertEqual(
+                    (runner / "pets-cli-package" / name).read_bytes(),
+                    (TRACK / "solutions/13-copilot-cli/runtime" / name).read_bytes(),
+                )
+            self.assertEqual((runner / "npm-args").read_text().splitlines(), [
+                "ci", "--prefix", str(runner / "pets-cli-package"),
+                "--ignore-scripts", "--no-audit", "--no-fund",
+            ])
+
     def test_cli_defaults_to_dry_run_and_needs_main_for_both_paths(self):
         workflow = solution("13-copilot-cli/copilot-cli.yml")
         self.assertEqual(set(workflow["on"]), {"workflow_dispatch"})
